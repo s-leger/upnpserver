@@ -16,15 +16,16 @@ var UPNPServer = require('./lib/upnpServer');
 var PathRepository = require('./lib/repositories/pathRepository');
 var MusicRepository = require('./lib/repositories/musicRepository');
 var HistoryRepository = require('./lib/repositories/historyRepository');
+var IceCastRepository = require('./lib/repositories/iceCastRepository');
 
 /**
  * upnpserver API.
- * 
+ *
  * @param {object}
  *            configuration
  * @param {array}
  *            paths
- * 
+ *
  * @constructor
  */
 var API = function(configuration, paths) {
@@ -63,7 +64,7 @@ util.inherits(API, events.EventEmitter);
 
 /**
  * Default server configuration.
- * 
+ *
  * @type {object}
  */
 API.prototype.defaultConfiguration = {
@@ -75,7 +76,7 @@ API.prototype.defaultConfiguration = {
 
 /**
  * Initialize paths.
- * 
+ *
  * @param path
  */
 API.prototype.initPaths = function(path) {
@@ -97,6 +98,10 @@ API.prototype.initPaths = function(path) {
       this.addMusicDirectory(mountPoint, path.path);
       break;
 
+    case "icecast":
+      this.addIceCast(mountPoint);
+    break;
+
     case "history":
       this.addHistoryDirectory(mountPoint);
       break;
@@ -115,7 +120,7 @@ API.prototype.initPaths = function(path) {
 
 /**
  * Add simple directory.
- * 
+ *
  * @param {string}
  *            mountPoint
  * @param {string}
@@ -139,7 +144,7 @@ API.prototype.addDirectory = function(mountPoint, path) {
 
 /**
  * Add a repository.
- * 
+ *
  * @param {Repository}
  *            repository
  */
@@ -148,10 +153,9 @@ API.prototype.addRepository = function(repository) {
 
   this.directories.push(repository);
 };
-
 /**
  * Add music directory.
- * 
+ *
  * @param {string}
  *            mountPoint
  * @param {string}
@@ -167,10 +171,26 @@ API.prototype.addMusicDirectory = function(mountPoint, path) {
 
   this.addRepository(repository);
 };
+/**
+ * Add iceCast.
+ *
+ * @param {string}
+ *            mountPoint
+ * @param {object}
+ *            medias (icecasts medias)
+ */
+API.prototype.addIceCast = function(mountPoint) {
+  assert(typeof mountPoint === "string", "Invalid mountPoint parameter '" +
+      mountPoint + "'");
+
+  var repository = new IceCastRepository("iceCast", mountPoint);
+
+  this.addRepository(repository);
+};
 
 /**
  * Add history directory.
- * 
+ *
  * @param {string}
  *            mountPoint
  */
@@ -249,7 +269,7 @@ API.prototype.start = function() {
 
 /**
  * Start server callback.
- * 
+ *
  * @return {UPNPServer}
  */
 API.prototype.startServer = function(callback) {
@@ -287,7 +307,7 @@ API.prototype.startServer = function(callback) {
 
 /**
  * After server start.
- * 
+ *
  * @param {object}
  *            upnpServer
  */
@@ -348,13 +368,25 @@ API.prototype._upnpServerStarted = function(upnpServer, callback) {
 
     console.log('Ready http://' + hostname + ':' + address.port);
 
+    process.on('exit', function(code) {
+      console.log('[EXIT] with code:', code);
+      });
+
+    // log SIGxxx signal
+    process.on( 'SIGHUP',  self.stop);
+    process.on( 'SIGINT',  self.stop);
+    process.on( 'SIGQUIT', self.stop);
+    process.on( 'SIGABRT', self.stop);
+    process.on( 'SIGTERM', self.stop);
+
+
     callback();
   });
 };
 
 /**
  * Process request
- * 
+ *
  * @param {object}
  *            request
  * @param {object}
@@ -406,12 +438,13 @@ API.prototype._processRequest = function(request, response) {
 
 /**
  * Stop server.
- * 
+ *
  * @param {function|null}
  *            callback
  */
 API.prototype.stop = function(callback) {
   callback = callback || function() {
+    process.exit();
     return false;
   };
 
@@ -449,5 +482,8 @@ API.prototype.stop = function(callback) {
 
   callback(null, stopped);
 };
+
+
+
 
 module.exports = API;
