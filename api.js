@@ -4,7 +4,8 @@
 var assert = require('assert');
 var events = require('events');
 var http = require('http');
-var ip = require('ip');
+// var ip = require('ip');
+var os = require('os');
 var SSDP = require('node-ssdp');
 var url = require('url');
 var util = require('util');
@@ -284,6 +285,9 @@ API.prototype.startServer = function(callback) {
   configuration.contentHandlers = this._contentHandlers;
   configuration.contentProviders = this._contentProviders;
 
+  // get first public ip
+  this.ip = configuration.ip || this.GetIp(configuration.ipFamily, configuration.iface);
+
   var self = this;
 
   if (!callback) {
@@ -305,6 +309,45 @@ API.prototype.startServer = function(callback) {
   return upnpServer;
 };
 
+API.prototype.GetIp = function (ipFamily, iface) {
+
+    var self = this
+    ,   ifaces = os.networkInterfaces()
+    ,   family = ipFamily || 'IPv4'
+    ;
+
+    for (var dev in ifaces) {
+        var devs = ifaces[dev]
+        if (iface && dev != iface) {
+          continue
+        }
+        for (var di in devs) {
+            var ni = devs[di]
+
+            if (ni.family != family) {
+                continue
+            }
+
+            if (ni.address == '::1') {
+                continue
+            }
+
+            if (ni.address == '127.0.0.1') {
+                continue
+            }
+
+            if (ni.internal) {
+                continue
+            }
+
+            return ni.address;
+
+        }
+    }
+    logger.error("Unable to find an external ip adress, use 127.0.0.1");
+    return '127.0.0.1';
+}
+
 /**
  * After server start.
  *
@@ -318,18 +361,22 @@ API.prototype._upnpServerStarted = function(upnpServer, callback) {
   this.upnpServer = upnpServer;
 
   var descriptionPath = upnpServer.descriptionPath.replace(/^\//, '');
-  var locationURL = 'http://' + ip.address() + ':' +
+  var locationURL = 'http://' + this.ip + ':' +
       this.configuration.httpPort + "/" + descriptionPath;
 
   var self = this;
 
   var ssdpServer = new SSDP.Server({
-    logLevel : self.configuration.ssdpLogLevel, // 'trace',
+    logLevel : self.configuration.ssdpLogLevel, // 'TRACE',
     log : self.configuration.ssdpLog,
     udn : self.upnpServer.uuid,
+    ttl : self.configuration.ttl,
+    ssdpTtl : self.configuration.ssdpTtl,
     description : descriptionPath,
-    location : locationURL
+    location : locationURL,
+    adInterval: self.configuration.adInterval
   });
+
   this.ssdpServer = ssdpServer;
 
   ssdpServer.addUSN('upnp:rootdevice');

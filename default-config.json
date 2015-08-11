@@ -31,7 +31,8 @@
 
     "object.container.playlistContainer": "./lib/class/object.container.playlistContainer"
 	},
-
+	"dlna":1,
+	"registryDb":"node",
 	"contentHandlers": [ {
 			"key": "matroska",
 			"mimeType": "video/x-matroska",
